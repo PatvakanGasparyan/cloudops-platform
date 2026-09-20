@@ -66,3 +66,41 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -v
+
+  docker:
+    name: Docker Build and Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Build Docker image
+        run: docker build -f backend/Dockerfile -t cloudops-api:ci .
+
+      - name: Run Docker container
+        run: docker run -d --name cloudops-api-ci -p 8000:8000 cloudops-api:ci
+
+      - name: Check container status
+        run: docker ps
+
+      - name: Test health endpoint
+        run: |
+          for i in {1..10}; do
+            if curl --fail http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs cloudops-api-ci
+          exit 1
+
+      - name: Show container logs
+        if: always()
+        run: docker logs cloudops-api-ci
+
+      - name: Remove test container
+        if: always()
+        run: docker rm -f cloudops-api-ci
